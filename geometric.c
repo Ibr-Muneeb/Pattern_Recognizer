@@ -1,15 +1,16 @@
 #include "pattern_header.h"
 
-int is_geometric(int arr[], int size) {
-    int fraction = arr[1] / arr[0];
-
+float is_geometric(float arr[], int size) {
+    float ratio = arr[1] / arr[0];
+    float epsilon = 0.00001f;
+    
     for (int i = 0; i < size - 1; i++) {
-        if (arr[i+1] / arr[i] == fraction) {
-            fraction = arr[1] / arr[0];
+        if (fabsf((arr[i+1] / arr[i]) - ratio) < epsilon) {
+            ratio = arr[1] / arr[0];
         } else {
-            fraction = 0;
+            ratio = 0;
         }
     }
     
-    return fraction;
+    return ratio;
 }

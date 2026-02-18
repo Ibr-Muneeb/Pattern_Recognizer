@@ -3,8 +3,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h> 
 
-int is_arithmetic(int arr[], int size);
-int is_geometric(int arr[], int size);
+float is_arithmetic(float arr[], int size);
+float is_geometric(float arr[], int size);
+void sequence(float *arr, int size);
+
 
 #endif
