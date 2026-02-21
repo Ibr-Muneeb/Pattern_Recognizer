@@ -1,37 +1,35 @@
 #include "pattern_header.h"
 
-void sequence(float *arr, int size) {
-    char buffer[256];
-    char *slash_pos;
+int sequence(float *arr, int max_size) {
+    char buffer[1024];
 
-    printf("Please enter 5 integers of your sequence: ");
-    if (scanf("%s", buffer) != 1) {
+    printf("Enter your sequence separated by commas: ");
+
+    if (!fgets(buffer, sizeof(buffer), stdin)) {
         printf("Error reading input.\n");
-        return;
+        return 0;
     }
-    
-    char *one_str = strtok(buffer, ",");
-    char *two_str = strtok(NULL, ",");
-    char *three_str = strtok(NULL, ",");
-    char *four_str = strtok(NULL, ",");
-    char *five_str = strtok(NULL, ",");
 
-    char *strings[] = {one_str, two_str, three_str, four_str, five_str}; 
+    int count = 0;
+    char *token = strtok(buffer, ", \n");
 
-    for (int i = 0; i < size; i++) {
-        slash_pos = strchr(strings[i], '/');
-    
+    while (token != NULL && count < max_size) {
+        char *slash_pos = strchr(token, '/');
+
         if (slash_pos == NULL) {
-            arr[i] = atof(strings[i]);
+            arr[count] = atof(token);
         } else {
-            *slash_pos = '\0'; 
-    
-            int numerator = atoi(strings[i]);
-            int denominator = atoi(slash_pos + 1); 
-            
-            arr[i] = (float)numerator / denominator; 
+            *slash_pos = '\0';
+            int numerator = atoi(token);
+            int denominator = atoi(slash_pos + 1);
+            arr[count] = (float)numerator / denominator;
         }
+
+        count++;
+        token = strtok(NULL, ", \n");
     }
+
+    return count;
 }
 
 

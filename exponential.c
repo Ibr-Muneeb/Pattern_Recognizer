@@ -1,6 +1,6 @@
 #include "pattern_header.h"
 
-float is_polynomial(float arr[], int size) {
+float is_exponential(float arr[], int size) {
     float epsilon = 0.00001f;
 
     for (int i = 1; i < 10; i++) {

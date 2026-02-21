@@ -8,7 +8,7 @@ float is_geometric(float arr[], int size) {
         if (fabsf((arr[i+1] / arr[i]) - ratio) < epsilon) {
             ratio = arr[1] / arr[0];
         } else {
-            ratio = 0;
+            return 0;
         }
     }
     

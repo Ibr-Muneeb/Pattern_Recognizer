@@ -76,20 +76,69 @@ float factorial(int n) {
     return result;
 }
 
-void print_polynomial(float table[256][256], int degree) {
-    printf("f(n) = %.2f", table[0][0]);
+void print_polynomial_expanded(float table[256][256], int degree) {
+    float final[256] = {0};   // stores final coefficients
+    float factorial(int);
 
-    for (int i = 1; i <= degree; i++) {
-        float coef = table[i][0] / factorial(i);
+    for (int i = 0; i <= degree; i++) {
 
-        printf(" + (%.2f)", coef);
+        // Build (n-1)(n-2)...(n-i)
+        float term[256] = {1};  // start with 1
+        int term_degree = 0;
 
         for (int j = 0; j < i; j++) {
-            printf("(n-%d)", j+1);
+
+            float factor[2];
+            factor[0] = -(j + 1);  // constant term
+            factor[1] = 1;         // n term
+
+            float temp[256];
+            multiply_poly(term, term_degree, factor, 1, temp);
+
+            term_degree++;
+
+            for (int k = 0; k <= term_degree; k++)
+                term[k] = temp[k];
         }
+
+        float coef = table[i][0] / factorial(i);
+
+        for (int k = 0; k <= term_degree; k++) {
+            final[k] += coef * term[k];
+        }
+    }
+
+    printf("f(n) = ");
+
+    int first = 1;
+    for (int i = degree; i >= 0; i--) {
+        if (fabsf(final[i]) < 0.0001f)
+            continue;
+
+        if (!first && final[i] >= 0)
+            printf("+ ");
+
+        if (i == 0)
+            printf("%f ", final[i]);
+        else if (i == 1)
+            printf("%fn ", final[i]);
+        else
+            printf("%fn^%d ", final[i], i);
+
+        first = 0;
     }
 
     printf("\n");
 }
 
 
+void multiply_poly(float a[], int degA, float b[], int degB, float result[]) {
+    for (int i = 0; i <= degA + degB; i++)
+        result[i] = 0;
+
+    for (int i = 0; i <= degA; i++) {
+        for (int j = 0; j <= degB; j++) {
+            result[i + j] += a[i] * b[j];
+        }
+    }
+}

@@ -1,29 +1,133 @@
 #include "pattern_header.h"
 
-int main() {
-    float arr[256] = {};
-    int size = 5;
+#define MAX_SIZE 256
 
-    sequence(arr, size);
+int main() {
+    Pattern best;
+    best.complexity = 1000;
+
+    float arr[MAX_SIZE];
+    
+    int size = sequence(arr, MAX_SIZE);
+
+    if (size < 2) {
+        printf("Need at least 2 numbers.\n");
+        return 1;
+    }
 
     float diff = is_arithmetic(arr, size);
-    float ratio = is_geometric(arr, size);
-    float expo = is_exponential(arr, size);
-
-    float table[256][256];
-    int degree = build_difference_table(arr, size, table);
-
     if (diff != 0) {
-        printf("The pattern is arithmetic: f(n) = f(n-1) + %.2f\n", diff);
-    } else if (ratio != 0) {
-        printf("The pattern is geometric: f(n) = f(n-1) * %.2f\n", ratio);
-    } else if (expo != 0) {
-        printf("The pattern is exponential: f(n) = n^%.0f\n", expo);
-    } else if (degree > 0) {
-        printf("The pattern is polynomial of degree %d\n", degree);
-        print_polynomial(table, degree);
-    } else {
-        printf("No recognizable pattern.\n");
+        Pattern p;
+        p.type = ARITHMETIC;
+        p.params[0] = diff;
+        p.complexity = 1;
+
+        if (p.complexity < best.complexity)
+            best = p;
+    }
+    
+    float ratio = is_geometric(arr, size);
+    if (ratio != 0) {
+        Pattern p;
+        p.type = GEOMETRIC;
+        p.params[0] = ratio;
+        p.params[1] = arr[0];
+        p.complexity = 2;
+
+        if (p.complexity < best.complexity)
+            best = p;
+    }
+
+    float expo = is_exponential(arr, size);
+    if (expo != 0) {
+        Pattern p;
+        p.type = EXPONENTIAL;  
+        p.params[0] = expo;     
+        p.complexity = 5;       
+
+        if (p.complexity < best.complexity)
+            best = p;
+    }
+
+
+    float table[MAX_SIZE][MAX_SIZE];
+    int degree = build_difference_table(arr, size, table);
+    if (degree > 0) {
+        Pattern p;
+        p.type = POLYNOMIAL;
+        p.degree = degree;
+        p.complexity = 6 + degree;
+
+        if (p.complexity < best.complexity)
+            best = p;
+    }
+
+    
+    float A, B;
+    int recurrence = is_recurrence(arr, size, &A, &B);
+    if (recurrence) {
+    Pattern p;
+    p.type = RECURRENCE;
+    p.params[0] = A;
+    p.params[1] = B;
+    p.complexity = 10;
+
+    if (p.complexity < best.complexity)
+        best = p;
+    }
+
+
+    float C;
+    int fact = is_factorial_pattern(arr, size, &C);
+    if (fact) {
+        Pattern p;
+        p.type = FACTORIAL;
+        p.params[0] = C;     
+        p.complexity = 8;    
+
+        if (p.complexity < best.complexity) {
+            best = p;
+        }
+    }
+
+
+    switch (best.type) {
+
+        case ARITHMETIC:
+            printf("Arithmetic sequence\n");
+            printf("f(n) = %.2fn + %.2f\n",
+            best.params[0],
+            arr[0] - best.params[0]);
+            break;
+
+        case GEOMETRIC:
+            printf("Geometric sequence\n");
+            printf("f(n) = %.2f * %.2f^(n-1)\n",
+            best.params[1],
+            best.params[0]);
+            break;
+        case EXPONENTIAL:
+            printf("Power sequence detected\n");
+            printf("f(n) = n^%.0f\n", best.params[0]);
+            break;
+
+        case FACTORIAL:
+            printf("Factorial-based sequence detected\n");
+            printf("f(n) = n! + %.2f\n", best.params[0]);
+            break;
+
+        case POLYNOMIAL:
+            printf("Polynomial of degree %d\n", best.degree);
+            print_polynomial_expanded(table, best.degree);
+            break;
+
+        case RECURRENCE:
+            printf("Second-order recurrence\n");
+            printf("f(n) = %.2f*f(n-1) + %.2f*f(n-2)\n", best.params[0], best.params[1]);
+            break;
+
+        default:
+            printf("No recognizable simple pattern\n");
     }
 
     return 0;
