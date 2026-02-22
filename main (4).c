@@ -2,6 +2,9 @@
 
 #define MAX_SIZE 256
 
+
+/* add alternating, floor and prime based */
+
 int main() {
     Pattern best;
     best.complexity = 1000;
@@ -89,6 +92,22 @@ int main() {
             best = p;
         }
     }
+    
+    Pattern oddP, evenP;
+
+    if (is_alternating(arr, size, &oddP, &evenP)) {
+        Pattern p;
+        p.type = ALTERNATING;
+        p.complexity = 3; 
+
+        p.params[0] = oddP.params[0];
+        p.params[1] = evenP.params[0];
+
+        if (p.complexity < best.complexity) {
+            best = p;
+        }
+    }
+
 
 
     switch (best.type) {
@@ -124,6 +143,12 @@ int main() {
         case RECURRENCE:
             printf("Second-order recurrence\n");
             printf("f(n) = %.2f*f(n-1) + %.2f*f(n-2)\n", best.params[0], best.params[1]);
+            break;
+            
+        case ALTERNATING:
+            printf("Alternating arithmetic pattern detected\n");
+            printf("Odd terms: arithmetic diff %.2f\n", best.params[0]);
+            printf("Even terms: arithmetic diff %.2f\n", best.params[1]);
             break;
 
         default:

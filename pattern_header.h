@@ -13,7 +13,7 @@
 #define POLYNOMIAL 4
 #define FACTORIAL 5
 #define RECURRENCE 6
-
+#define ALTERNATING 7
 
 typedef struct {
     int type;
@@ -33,5 +33,6 @@ void print_polynomial_expanded(float table[256][256], int degree);
 void multiply_poly(float a[], int degA, float b[], int degB, float result[]);
 int is_recurrence(float arr[], int size, float *A, float *B);
 int is_factorial_pattern(float arr[], int size, float *C);
+int is_alternating(float arr[], int size, Pattern *oddPattern, Pattern *evenPattern);
 
 #endif
