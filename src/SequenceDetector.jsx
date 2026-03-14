@@ -144,7 +144,7 @@ function detectPattern(arr){
   let best={type:UNKNOWN,complexity:9999,params:{}};
   const pick=(p)=>{if(p.complexity<best.complexity)best=p;};
   const arith=isArithmetic(arr);
-  if(arith!==0)pick({type:ARITHMETIC,complexity:1,params:{diff:Math.abs(arith)<1e-8?0:arith,a0:arr[0]}});
+  if(arith!==0)pick({type:ARITHMETIC,complexity:1,params:{diff:Math.abs(arith)<1e-8?0:arith,a1:arr[0]}});
   const tri=isTriangular(arr);
   if(tri!==null)pick({type:TRIANGULAR,complexity:3,params:{C:tri}});
   const geo=isGeometric(arr);
@@ -174,7 +174,7 @@ function detectPattern(arr){
 function predictTerm(best,n,arr){
   const p=best.params;
   switch(best.type){
-    case ARITHMETIC:  return p.a0+(n-1)*p.diff+p.diff;
+    case ARITHMETIC:  return p.a1+(n-1)*p.diff;
     case GEOMETRIC:   return p.a1*Math.pow(p.ratio,n-1);
     case EXPONENTIAL: return Math.pow(n,p.k);
     case EXP_OFFSET:  return p.A*Math.pow(p.r,n-1)+p.C;
@@ -216,9 +216,13 @@ function buildPolyString(table,degree){
 function formulaString(best,arr){
   const p=best.params,f=(x)=>+x.toFixed(4);
   switch(best.type){
-    case ARITHMETIC:
+    case ARITHMETIC:{
       if(Math.abs(p.diff)<1e-8)return`f(n) = ${f(arr[0])}  (constant)`;
-      return`f(n) = ${f(p.diff)}n + ${f(p.a0)}`;
+      // f(n) = a1 + (n-1)*d = d*n + (a1 - d)
+      const intercept = p.a1 - p.diff;
+      if(Math.abs(intercept)<0.0001) return`f(n) = ${f(p.diff)}n`;
+      return`f(n) = ${f(p.diff)}n ${intercept>=0?'+ '+'':''}${f(intercept)}`;
+    }
     case GEOMETRIC:   return`f(n) = ${f(p.a1)} · ${f(p.ratio)}^(n−1)`;
     case EXPONENTIAL: return`f(n) = n^${p.k}`;
     case EXP_OFFSET:  return`f(n) = ${f(p.A)} · ${f(p.r)}^(n−1) + ${f(p.C)}`;
