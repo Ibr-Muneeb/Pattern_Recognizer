@@ -325,70 +325,120 @@ function isLucasSequence(arr) {
 }
 
 
-// ── Pattern detector ──────────────────────────────────────
+// ── Confidence scoring ────────────────────────────────────
+function confidenceFor(candidate, arrLen) {
+  const { type, params } = candidate;
+  // Base rules by type
+  if ([ARITHMETIC, GEOMETRIC, EXPONENTIAL, RATIONAL].includes(type)) return "HIGH";
+  if ([TRIANGULAR, FIBONACCI, LUCAS, CATALAN, PRIME, BINOMIAL].includes(type)) return "HIGH";
+  if (type === PERIODIC) return arrLen >= 8 ? "HIGH" : "MEDIUM";
+  if (type === ALTERNATING) return arrLen >= 8 ? "HIGH" : "MEDIUM";
+  if (type === FACTORIAL) return "HIGH";
+  if (type === EXP_OFFSET) return arrLen >= 5 ? "HIGH" : "MEDIUM";
+  if (type === FLOOR_SEQ || type === CEIL_SEQ) return "MEDIUM";
+  if (type === RECURRENCE) return arrLen >= 6 ? "MEDIUM" : "LOW";
+  if (type === QUAD_REC) return arrLen >= 5 ? "MEDIUM" : "LOW";
+  if (type === POLYNOMIAL) {
+    const { degree } = params;
+    if (degree <= 2 && arrLen >= degree + 3) return "HIGH";
+    if (degree <= 4 && arrLen >= degree + 3) return "MEDIUM";
+    return "LOW";
+  }
+  return "MEDIUM";
+}
+
+// Growth class labels
+function growthClass(type) {
+  if (type === ARITHMETIC) return "Linear";
+  if (type === GEOMETRIC || type === EXP_OFFSET) return "Exponential";
+  if (type === EXPONENTIAL) return "Power";
+  if (type === POLYNOMIAL || type === TRIANGULAR || type === BINOMIAL) return "Polynomial";
+  if (type === FACTORIAL || type === CATALAN || type === QUAD_REC) return "Super-exponential";
+  if (type === FIBONACCI || type === LUCAS) return "Exponential";
+  if (type === PERIODIC || type === ALTERNATING) return "Bounded";
+  if (type === FLOOR_SEQ || type === CEIL_SEQ) return "Linear";
+  if (type === RECURRENCE) return "Exponential";
+  if (type === PRIME) return "Quasi-linear";
+  if (type === RATIONAL) return "Converging";
+  return "Unknown";
+}
+
+// ── Pattern detector — returns sorted candidates ──────────
 function detectPattern(arr) {
-  let best = { type:UNKNOWN, complexity:9999, params:{} };
-  const pick = (p) => { if (p.complexity < best.complexity) best = p; };
+  const candidates = [];
+  const add = (p) => candidates.push(p);
 
   const arith = isArithmetic(arr);
-  if (arith !== 0) pick({type:ARITHMETIC, complexity:1, params:{diff:Math.abs(arith)<1e-8?0:arith, a1:arr[0]}});
+  if (arith !== 0) add({type:ARITHMETIC, complexity:1, params:{diff:Math.abs(arith)<1e-8?0:arith, a1:arr[0]}});
 
   const tri = isTriangular(arr);
-  if (tri !== null) pick({type:TRIANGULAR, complexity:3, params:{C:tri}});
+  if (tri !== null) add({type:TRIANGULAR, complexity:3, params:{C:tri}});
 
   const geo = isGeometric(arr);
-  if (geo !== 0) pick({type:GEOMETRIC, complexity:2, params:{ratio:geo, a1:arr[0]}});
+  if (geo !== 0) add({type:GEOMETRIC, complexity:2, params:{ratio:geo, a1:arr[0]}});
 
   const alt = isAlternating(arr);
-  if (alt) pick({type:ALTERNATING, complexity:3, params:{dOdd:alt.dOdd, dEven:alt.dEven, oddStart:arr[0], evenStart:arr.length>1?arr[1]:0}});
+  if (alt) add({type:ALTERNATING, complexity:3, params:{dOdd:alt.dOdd, dEven:alt.dEven, oddStart:arr[0], evenStart:arr.length>1?arr[1]:0}});
 
   const expOff = isExponentialOffset(arr);
-  if (expOff) pick({type:EXP_OFFSET, complexity:4, params:expOff});
+  if (expOff) add({type:EXP_OFFSET, complexity:4, params:expOff});
 
   const expo = isExponential(arr);
-  if (expo) pick({type:EXPONENTIAL, complexity:2, params:{k:expo}});
+  if (expo) add({type:EXPONENTIAL, complexity:2, params:{k:expo}});
 
   const { table, degree } = buildDifferenceTable(arr);
-  // Require at least degree+2 points — otherwise it's just interpolation, not pattern detection
-  if (degree > 0 && arr.length >= degree + 2) pick({type:POLYNOMIAL, complexity:6+degree, params:{degree, table}});
+  if (degree > 0 && arr.length >= degree + 2) add({type:POLYNOMIAL, complexity:6+degree, params:{degree, table}});
 
-  if (isFibonacci(arr)) pick({type:FIBONACCI, complexity:7, params:{a0:arr[0], a1:arr[1]}});
+  if (isFibonacci(arr)) add({type:FIBONACCI, complexity:7, params:{a0:arr[0], a1:arr[1]}});
 
   const factC = isFactorial(arr);
-  if (factC !== null) pick({type:FACTORIAL, complexity:8, params:{C:factC}});
+  if (factC !== null) add({type:FACTORIAL, complexity:8, params:{C:factC}});
 
   const period = isPeriodic(arr);
-  if (period) pick({type:PERIODIC, complexity:9, params:{period, cycle:arr.slice(0,period)}});
+  if (period) add({type:PERIODIC, complexity:9, params:{period, cycle:arr.slice(0,period)}});
 
   const rec = isRecurrence(arr);
-  if (rec) pick({type:RECURRENCE, complexity:10, params:rec});
+  if (rec) add({type:RECURRENCE, complexity:10, params:rec});
 
   const flr = isFloorPattern(arr);
-  if (flr) pick({type:FLOOR_SEQ, complexity:4, params:flr});
+  if (flr) add({type:FLOOR_SEQ, complexity:4, params:flr});
 
   const cl = isCeilPattern(arr);
-  if (cl) pick({type:CEIL_SEQ, complexity:4, params:cl});
+  if (cl) add({type:CEIL_SEQ, complexity:4, params:cl});
 
-  // NEW
   const lucas = isLucasSequence(arr);
-  if (lucas) pick({type:LUCAS, complexity:6, params:lucas});
+  if (lucas) add({type:LUCAS, complexity:6, params:lucas});
 
   const catalan = isCatalanSequence(arr);
-  if (catalan) pick({type:CATALAN, complexity:6, params:catalan});
+  if (catalan) add({type:CATALAN, complexity:6, params:catalan});
 
   const binom = isBinomialSequence(arr);
-  if (binom) pick({type:BINOMIAL, complexity:5, params:binom});
+  if (binom) add({type:BINOMIAL, complexity:5, params:binom});
 
   const primes = isPrimeSequence(arr);
-  if (primes) pick({type:PRIME, complexity:7, params:primes});
+  if (primes) add({type:PRIME, complexity:7, params:primes});
 
   const qrec = isQuadraticRecurrence(arr);
-  if (qrec) pick({type:QUAD_REC, complexity:5, params:qrec});
+  if (qrec) add({type:QUAD_REC, complexity:5, params:qrec});
 
   const rat = isRational(arr);
-  if (rat) pick({type:RATIONAL, complexity:2, params:rat});
+  if (rat) add({type:RATIONAL, complexity:2, params:rat});
 
-  return { best, table, degree };
+  // Sort by complexity, deduplicate near-identical formulas
+  candidates.sort((a, b) => a.complexity - b.complexity);
+
+  // Remove candidates whose formula string is identical to a simpler one already kept
+  const seen = new Set();
+  const unique = candidates.filter(c => {
+    const key = formulaLatex(c, arr);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const top = unique.slice(0, 3);
+  const best = top[0] || { type:UNKNOWN, complexity:9999, params:{} };
+  return { best, candidates: top, table, degree };
 }
 
 // ── predictTerm ───────────────────────────────────────────
@@ -640,9 +690,6 @@ const EXAMPLES = [
   "1, 4, 9, 16, 25",
   "1, 1, 2, 3, 5, 8",
   "1, 3, 6, 10, 15",
-  "2, 3, 5, 7, 11",
-  "1, 2, 5, 14, 42",
-  "2, 1, 3, 4, 7, 11",
   "1/2, 2/3, 3/4, 4/5",
 ];
 
@@ -751,16 +798,17 @@ function CustomTooltip({ active, payload }) {
 
 // ── Main App ──────────────────────────────────────────────
 export default function App() {
-  const [input,      setInput]      = useState("");
-  const [result,     setResult]     = useState(null);
-  const [error,      setError]      = useState("");
-  const [loading,    setLoading]    = useState(false);
-  const [predictN,   setPredictN]   = useState(5);
-  const [predicted,  setPredicted]  = useState(null);
-  const [targetIdx,  setTargetIdx]  = useState("");
-  const [idxResult,  setIdxResult]  = useState(null);
-  const [showDiff,   setShowDiff]   = useState(false);
-  const [katexReady, setKatexReady] = useState(false);
+  const [input,        setInput]        = useState("");
+  const [result,       setResult]       = useState(null);
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [activeIdx,    setActiveIdx]    = useState(0);   // which candidate is selected
+  const [predictN,     setPredictN]     = useState(5);
+  const [predicted,    setPredicted]    = useState(null);
+  const [targetIdx,    setTargetIdx]    = useState("");
+  const [idxResult,    setIdxResult]    = useState(null);
+  const [showDiff,     setShowDiff]     = useState(false);
+  const [katexReady,   setKatexReady]   = useState(false);
 
   useEffect(() => {
     if (window.katex) { setKatexReady(true); return; }
@@ -778,22 +826,31 @@ export default function App() {
   }
 
   function handleDetect() {
-    setError(""); setResult(null); setPredicted(null); setIdxResult(null); setShowDiff(false);
+    setError(""); setResult(null); setPredicted(null); setIdxResult(null);
+    setShowDiff(false); setActiveIdx(0);
     const arr = parseInput(input);
     if (arr.length < 2) { setError("Please enter at least 2 numbers."); return; }
     setLoading(true);
     setTimeout(() => {
-      const { best, table, degree } = detectPattern(arr);
-      setResult({ best, arr, table, degree });
+      const { best, candidates, table, degree } = detectPattern(arr);
+      // Auto-compute next 5 terms from best candidate
+      const autoNext = Array.from({ length: 5 }, (_, i) => ({
+        n: arr.length+1+i, val: predictTerm(best, arr.length+1+i, arr)
+      }));
+      setResult({ best, candidates, arr, table, degree });
+      setPredicted(autoNext);
       setLoading(false);
     }, 280);
   }
 
+  // active candidate (switches when user clicks alt pattern tab)
+  const activeCand = result?.candidates?.[activeIdx] ?? result?.best;
+
   function handlePredict() {
     if (!result) return;
-    const { best, arr } = result;
     setPredicted(Array.from({ length: predictN }, (_, i) => ({
-      n: arr.length+1+i, val: predictTerm(best, arr.length+1+i, arr)
+      n: result.arr.length+1+i,
+      val: predictTerm(activeCand, result.arr.length+1+i, result.arr)
     })));
   }
 
@@ -801,8 +858,51 @@ export default function App() {
     if (!result || !targetIdx) return;
     const idx = parseInt(targetIdx);
     if (isNaN(idx) || idx < 1) return;
-    setIdxResult({ idx, val: predictTerm(result.best, idx, result.arr) });
+    setIdxResult({ idx, val: predictTerm(activeCand, idx, result.arr) });
   }
+
+  function handleOEIS() {
+    if (!result) return;
+    const intTerms = result.arr
+      .filter(v => Math.abs(v - Math.round(v)) < 0.01)
+      .map(v => Math.round(v));
+    window.open(`https://oeis.org/search?q=${intTerms.join(",")}`, "_blank");
+  }
+
+  function handleCopyFormula() {
+    if (!activeCand) return;
+    const latex = formulaLatex(activeCand, result.arr);
+    navigator.clipboard?.writeText(latex);
+  }
+
+  function handleDownloadJSON() {
+    if (!result) return;
+    const obj = {
+      pattern: TYPE_NAMES[activeCand.type],
+      formula: formulaLatex(activeCand, result.arr),
+      confidence: confidenceFor(activeCand, result.arr.length),
+      growth: growthClass(activeCand.type),
+      sequence: result.arr,
+      next5: Array.from({length:5},(_,i) => predictTerm(activeCand, result.arr.length+1+i, result.arr))
+    };
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "sequence.json";
+    a.click();
+  }
+
+  function handleShareLink() {
+    const url = `${window.location.origin}${window.location.pathname}?seq=${encodeURIComponent(input)}`;
+    navigator.clipboard?.writeText(url);
+  }
+
+  // On mount, pre-fill from URL ?seq= param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const seq = params.get("seq");
+    if (seq) setInput(decodeURIComponent(seq));
+  }, []);
 
   const origData = result
     ? result.arr.map((v,i) => ({ n:i+1, value:v, predicted:false }))
@@ -825,31 +925,18 @@ export default function App() {
         .tagline{font-size:.82rem;color:#999;}
 
         .search-wrap{margin:1.75rem 0 .65rem;position:relative;}
-        .search-input{
-          width:100%;font-family:'Source Sans 3',sans-serif;font-size:1rem;font-weight:300;
-          color:#1a1a1a;background:#fff;border:2px solid #e8b090;border-radius:4px;
-          padding:.8rem 3.2rem .8rem 1rem;outline:none;transition:border .15s,box-shadow .15s;
-        }
+        .search-input{width:100%;font-family:'Source Sans 3',sans-serif;font-size:1rem;font-weight:300;color:#1a1a1a;background:#fff;border:2px solid #e8b090;border-radius:4px;padding:.8rem 3.2rem .8rem 1rem;outline:none;transition:border .15s,box-shadow .15s;}
         .search-input:focus{border-color:#c0392b;box-shadow:0 0 0 3px rgba(192,57,43,.07);}
         .search-input::placeholder{color:#c8c8c8;font-style:italic;}
-        .search-btn{
-          position:absolute;right:0;top:0;bottom:0;width:3rem;
-          background:none;border:none;cursor:pointer;color:#c0392b;
-          display:flex;align-items:center;justify-content:center;
-        }
+        .search-btn{position:absolute;right:0;top:0;bottom:0;width:3rem;background:none;border:none;cursor:pointer;color:#c0392b;display:flex;align-items:center;justify-content:center;}
         .search-btn:hover{opacity:.65;}
 
         .examples-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:2rem;align-items:center;}
         .ex-label{font-size:.72rem;color:#bbb;margin-right:.1rem;}
-        .ex-chip{
-          font-size:.72rem;color:#c0392b;background:none;
-          border:1px solid #f0c8b8;border-radius:2px;padding:.18rem .5rem;
-          cursor:pointer;font-family:'Source Sans 3',sans-serif;transition:all .1s;
-        }
+        .ex-chip{font-size:.72rem;color:#c0392b;background:none;border:1px solid #f0c8b8;border-radius:2px;padding:.18rem .5rem;cursor:pointer;font-family:'Source Sans 3',sans-serif;transition:all .1s;}
         .ex-chip:hover{background:#fdf4f2;border-color:#c0392b;}
 
         .error{color:#c0392b;font-size:.8rem;margin-bottom:.75rem;}
-
         .loading-line{height:2px;background:#f7eeeb;margin-bottom:2rem;position:relative;overflow:hidden;}
         .loading-line::after{content:'';position:absolute;left:-35%;width:35%;height:100%;background:#c0392b;animation:sweep .65s linear infinite;}
         @keyframes sweep{to{left:110%;}}
@@ -857,13 +944,24 @@ export default function App() {
         .result{animation:fadeUp .28s ease;}
         @keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 
-        .result-type{font-size:.67rem;letter-spacing:.13em;text-transform:uppercase;color:#c0392b;font-weight:600;margin-bottom:.5rem;}
+        /* candidate tabs */
+        .cand-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;}
+        .cand-tab{font-family:'Source Sans 3',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:.3rem .75rem;border-radius:2px;cursor:pointer;border:1px solid #f0c8b8;background:#fff;color:#888;transition:all .12s;}
+        .cand-tab:hover{border-color:#c0392b;color:#c0392b;}
+        .cand-tab.active{background:#c0392b;color:#fff;border-color:#c0392b;}
 
-        .formula-box{
-          margin-bottom:1.25rem;padding:.65rem .9rem;
-          background:#fdf8f6;border-left:3px solid #e8b090;
-          border-radius:0 3px 3px 0;font-size:1.05rem;overflow-x:auto;
-        }
+        /* pattern header */
+        .pattern-header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem;}
+        .result-type{font-size:.67rem;letter-spacing:.13em;text-transform:uppercase;color:#c0392b;font-weight:600;}
+
+        /* badges */
+        .badge{font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:.18rem .5rem;border-radius:2px;}
+        .badge-high{background:#eaf7ee;color:#27ae60;border:1px solid #b7e4c7;}
+        .badge-medium{background:#fef9ec;color:#d4830a;border:1px solid #fde8a0;}
+        .badge-low{background:#fdf0ef;color:#c0392b;border:1px solid #f5c6c0;}
+        .badge-growth{background:#f0f4ff;color:#2471a3;border:1px solid #b8d0f0;}
+
+        .formula-box{margin-bottom:1.25rem;padding:.65rem .9rem;background:#fdf8f6;border-left:3px solid #e8b090;border-radius:0 3px 3px 0;font-size:1.05rem;overflow-x:auto;}
         .formula-box .katex{font-size:1.15rem;}
 
         .seq-row{display:flex;flex-wrap:wrap;border:1px solid #f0eae6;border-radius:3px;overflow:hidden;margin-bottom:1.4rem;}
@@ -895,7 +993,9 @@ export default function App() {
         .go-btn{font-family:'Source Sans 3',sans-serif;font-size:.75rem;font-weight:600;letter-spacing:.04em;padding:.34rem .85rem;background:#c0392b;color:#fff;border:none;border-radius:3px;cursor:pointer;transition:background .1s;}
         .go-btn:hover{background:#a93226;}
 
-        .pred-row{display:flex;flex-wrap:wrap;border:1px solid #ddeef8;border-radius:3px;overflow:hidden;margin-bottom:1.4rem;}
+        .auto-next{margin-bottom:1.4rem;}
+        .auto-next-label{font-size:.67rem;letter-spacing:.12em;text-transform:uppercase;color:#bbb;font-weight:600;margin-bottom:.6rem;}
+        .pred-row{display:flex;flex-wrap:wrap;border:1px solid #ddeef8;border-radius:3px;overflow:hidden;}
         .pred-cell{display:flex;flex-direction:column;align-items:center;padding:.45rem .7rem;border-right:1px solid #ddeef8;min-width:56px;animation:fadeUp .2s ease backwards;}
         .pred-cell:last-child{border-right:none;}
         .pred-val{font-family:'Source Serif 4',serif;font-size:.9rem;color:#2980b9;}
@@ -903,6 +1003,12 @@ export default function App() {
 
         .idx-answer{font-family:'Source Serif 4',serif;font-size:1.05rem;color:#111;padding:.55rem .85rem;background:#fdf6f4;border-left:3px solid #c0392b;border-radius:0 3px 3px 0;margin-top:.25rem;}
         .idx-answer span{color:#c0392b;}
+
+        /* toolbar */
+        .toolbar{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
+        .tool-btn{font-family:'Source Sans 3',sans-serif;font-size:.72rem;font-weight:600;letter-spacing:.04em;padding:.32rem .8rem;background:#fff;border:1px solid #e0d0c8;border-radius:3px;cursor:pointer;color:#555;transition:all .12s;display:flex;align-items:center;gap:.35rem;}
+        .tool-btn:hover{border-color:#c0392b;color:#c0392b;}
+        .tool-btn svg{flex-shrink:0;}
       `}</style>
 
       <div className="header">
@@ -914,7 +1020,7 @@ export default function App() {
         <input className="search-input" value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleDetect()}
-          placeholder="e.g.  2, 4, 8, 16   or   2, 3, 5, 7, 11   or   1, 4, 9, 16, 5, 6, 7"
+          placeholder="e.g.  2, 4, 8, 16   or   1 1 2 3 5 8   or   1/2, 2/3, 3/4"
         />
         <button className="search-btn" onClick={handleDetect}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -929,7 +1035,7 @@ export default function App() {
         <span className="ex-label">Examples:</span>
         {EXAMPLES.map(s => (
           <button key={s} className="ex-chip"
-            onClick={() => { setInput(s); setResult(null); setPredicted(null); setIdxResult(null); }}>
+            onClick={() => { setInput(s); setResult(null); setPredicted(null); setIdxResult(null); setActiveIdx(0); }}>
             {s}
           </button>
         ))}
@@ -937,140 +1043,194 @@ export default function App() {
 
       {loading && <div className="loading-line" />}
 
-      {result && (
-        <div className="result">
+      {result && activeCand && (() => {
+        const conf = confidenceFor(activeCand, result.arr.length);
+        const growth = growthClass(activeCand.type);
+        const confClass = conf === "HIGH" ? "badge-high" : conf === "MEDIUM" ? "badge-medium" : "badge-low";
+        return (
+          <div className="result">
 
-          <div className="result-type">{TYPE_NAMES[result.best.type]}</div>
-
-          {/* KaTeX formula */}
-          <div className="formula-box">
-            {katexReady
-              ? <KatexSpan latex={formulaLatex(result.best, result.arr)} />
-              : <span style={{fontFamily:"serif"}}>{formulaLatex(result.best, result.arr)}</span>
-            }
-          </div>
-
-          {/* Sequence tiles */}
-          <div className="seq-row">
-            {result.arr.slice(0,12).map((v,i) => (
-              <div key={i} className="seq-cell">
-                <div className="seq-val"><FracVal value={v} /></div>
-                <div className="seq-idx">n={i+1}</div>
+            {/* Candidate tabs */}
+            {result.candidates.length > 1 && (
+              <div className="cand-tabs">
+                {result.candidates.map((c, i) => (
+                  <button key={i}
+                    className={`cand-tab${activeIdx === i ? " active" : ""}`}
+                    onClick={() => {
+                      setActiveIdx(i);
+                      setPredicted(Array.from({length:predictN},(_,j)=>({n:result.arr.length+1+j,val:predictTerm(c,result.arr.length+1+j,result.arr)})));
+                      setIdxResult(null);
+                    }}>
+                    {i+1}. {TYPE_NAMES[c.type]}
+                  </button>
+                ))}
               </div>
-            ))}
-            {result.arr.length > 12 && <div className="seq-ellipsis">…</div>}
-          </div>
+            )}
 
-          {/* Difference table (polynomial only) */}
-          {result.best.type === POLYNOMIAL && (
-            <>
-              <button className="diff-toggle" onClick={() => setShowDiff(v => !v)}>
-                {showDiff ? "Hide" : "Show"} difference table
-              </button>
-              {showDiff && (
-                <div className="diff-table-wrap">
-                  <table className="diff-table"><tbody>
-                    {Array.from({ length: result.degree+1 }, (_,lvl) => (
-                      <tr key={lvl}>
-                        <td className="rl">Δ{lvl}</td>
-                        {Array.from({ length: result.arr.length-lvl }, (_,i) => (
-                          <td key={i}><FracVal value={result.table[lvl][i]} /></td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody></table>
-                </div>
-              )}
-            </>
-          )}
-
-          <hr className="div" />
-
-          {/* Chart */}
-          <div className="chart-section">
-            <div className="chart-label">Plot — n vs f(n)</div>
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart margin={{ top:8, right:16, bottom:8, left:8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0eae6" />
-                  <XAxis dataKey="n" type="number" domain={["auto","auto"]}
-                    tick={{ fontFamily:"'Source Sans 3',sans-serif", fontSize:11, fill:"#aaa" }}
-                    label={{ value:"n", position:"insideBottomRight", offset:-4, fill:"#bbb", fontSize:11 }}
-                  />
-                  <YAxis
-                    tick={{ fontFamily:"'Source Sans 3',sans-serif", fontSize:11, fill:"#aaa" }}
-                    label={{ value:"f(n)", angle:-90, position:"insideLeft", offset:8, fill:"#bbb", fontSize:11 }}
-                    width={52}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend verticalAlign="top" align="right" height={28}
-                    formatter={val => <span style={{fontSize:".75rem",color:"#666"}}>{val}</span>}
-                  />
-                  <Line data={origData} dataKey="value" name="Original"
-                    type="monotone" stroke="#c0392b" strokeWidth={1.5}
-                    dot={{ fill:"#c0392b", r:4, strokeWidth:0 }}
-                    activeDot={{ r:5 }} legendType="circle"
-                  />
-                  {predData.length > 0 && (
-                    <Line
-                      data={[
-                        { n:origData[origData.length-1].n, value:origData[origData.length-1].value, predicted:true },
-                        ...predData
-                      ]}
-                      dataKey="value" name="Predicted"
-                      type="monotone" stroke="#2980b9" strokeWidth={1.5} strokeDasharray="5 3"
-                      dot={{ fill:"#fff", stroke:"#2980b9", r:4, strokeWidth:1.5 }}
-                      activeDot={{ r:5 }} legendType="circle"
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
+            {/* Pattern header */}
+            <div className="pattern-header">
+              <div className="result-type">{TYPE_NAMES[activeCand.type]}</div>
+              <span className={`badge ${confClass}`}>{conf}</span>
+              <span className="badge badge-growth">Growth: {growth}</span>
             </div>
-          </div>
 
-          <hr className="div" />
+            {/* Formula */}
+            <div className="formula-box">
+              {katexReady
+                ? <KatexSpan latex={formulaLatex(activeCand, result.arr)} />
+                : <span style={{fontFamily:"serif"}}>{formulaLatex(activeCand, result.arr)}</span>
+              }
+            </div>
 
-          {/* Predict next N */}
-          <div className="sec-head">Predict Next Terms</div>
-          <div className="ctrl-row">
-            <label>Next</label>
-            <input className="num-input" type="number" min={1} max={20} value={predictN}
-              onChange={e => { setPredictN(+e.target.value); setPredicted(null); }} />
-            <label>terms</label>
-            <button className="go-btn" onClick={handlePredict}>Compute</button>
-          </div>
-          {predicted && (
-            <div className="pred-row">
-              {predicted.map(({ n, val }, i) => (
-                <div key={n} className="pred-cell" style={{ animationDelay:`${i*35}ms` }}>
-                  <div className="pred-val"><FracVal value={val} color="#2980b9" /></div>
-                  <div className="pred-idx">n={n}</div>
+            {/* Sequence tiles */}
+            <div className="seq-row">
+              {result.arr.slice(0,12).map((v,i) => (
+                <div key={i} className="seq-cell">
+                  <div className="seq-val"><FracVal value={v} /></div>
+                  <div className="seq-idx">n={i+1}</div>
                 </div>
               ))}
+              {result.arr.length > 12 && <div className="seq-ellipsis">…</div>}
             </div>
-          )}
 
-          <hr className="div" />
+            {/* Difference table (polynomial only) */}
+            {activeCand.type === POLYNOMIAL && (
+              <>
+                <button className="diff-toggle" onClick={() => setShowDiff(v => !v)}>
+                  {showDiff ? "Hide" : "Show"} difference table
+                </button>
+                {showDiff && (
+                  <div className="diff-table-wrap">
+                    <table className="diff-table"><tbody>
+                      {Array.from({ length: result.degree+1 }, (_,lvl) => (
+                        <tr key={lvl}>
+                          <td className="rl">Δ{lvl}</td>
+                          {Array.from({ length: result.arr.length-lvl }, (_,i) => (
+                            <td key={i}><FracVal value={result.table[lvl][i]} /></td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody></table>
+                  </div>
+                )}
+              </>
+            )}
 
-          {/* Term at index */}
-          <div className="sec-head">Get Term at Index</div>
-          <div className="ctrl-row">
-            <label>f(</label>
-            <input className="num-input" type="number" min={1} value={targetIdx}
-              placeholder="n"
-              onChange={e => { setTargetIdx(e.target.value); setIdxResult(null); }}
-              onKeyDown={e => e.key === "Enter" && handleIndex()} />
-            <label>)</label>
-            <button className="go-btn" onClick={handleIndex}>Compute</button>
+            <hr className="div" />
+
+            {/* Chart */}
+            <div className="chart-section">
+              <div className="chart-label">Plot — n vs f(n)</div>
+              <div className="chart-wrap">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart margin={{ top:8, right:16, bottom:8, left:8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0eae6" />
+                    <XAxis dataKey="n" type="number" domain={["auto","auto"]}
+                      tick={{ fontFamily:"'Source Sans 3',sans-serif", fontSize:11, fill:"#aaa" }}
+                      label={{ value:"n", position:"insideBottomRight", offset:-4, fill:"#bbb", fontSize:11 }}
+                    />
+                    <YAxis
+                      tick={{ fontFamily:"'Source Sans 3',sans-serif", fontSize:11, fill:"#aaa" }}
+                      label={{ value:"f(n)", angle:-90, position:"insideLeft", offset:8, fill:"#bbb", fontSize:11 }}
+                      width={52}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend verticalAlign="top" align="right" height={28}
+                      formatter={val => <span style={{fontSize:".75rem",color:"#666"}}>{val}</span>}
+                    />
+                    <Line data={origData} dataKey="value" name="Original"
+                      type="monotone" stroke="#c0392b" strokeWidth={1.5}
+                      dot={{ fill:"#c0392b", r:4, strokeWidth:0 }}
+                      activeDot={{ r:5 }} legendType="circle"
+                    />
+                    {predData.length > 0 && (
+                      <Line
+                        data={[
+                          { n:origData[origData.length-1].n, value:origData[origData.length-1].value, predicted:true },
+                          ...predData
+                        ]}
+                        dataKey="value" name="Predicted"
+                        type="monotone" stroke="#2980b9" strokeWidth={1.5} strokeDasharray="5 3"
+                        dot={{ fill:"#fff", stroke:"#2980b9", r:4, strokeWidth:1.5 }}
+                        activeDot={{ r:5 }} legendType="circle"
+                      />
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <hr className="div" />
+
+            {/* Auto next terms */}
+            {predicted && (
+              <div className="auto-next">
+                <div className="auto-next-label">Next Terms</div>
+                <div className="pred-row">
+                  {predicted.map(({ n, val }, i) => (
+                    <div key={n} className="pred-cell" style={{ animationDelay:`${i*35}ms` }}>
+                      <div className="pred-val"><FracVal value={val} color="#2980b9" /></div>
+                      <div className="pred-idx">n={n}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom predict N */}
+            <div className="sec-head">Predict Next Terms</div>
+            <div className="ctrl-row">
+              <label>Next</label>
+              <input className="num-input" type="number" min={1} max={50} value={predictN}
+                onChange={e => { setPredictN(+e.target.value); setPredicted(null); }} />
+              <label>terms</label>
+              <button className="go-btn" onClick={handlePredict}>Compute</button>
+            </div>
+
+            <hr className="div" />
+
+            {/* Term at index */}
+            <div className="sec-head">Get Term at Index</div>
+            <div className="ctrl-row">
+              <label>f(</label>
+              <input className="num-input" type="number" min={1} value={targetIdx}
+                placeholder="n"
+                onChange={e => { setTargetIdx(e.target.value); setIdxResult(null); }}
+                onKeyDown={e => e.key === "Enter" && handleIndex()} />
+              <label>)</label>
+              <button className="go-btn" onClick={handleIndex}>Compute</button>
+            </div>
+            {idxResult && (
+              <div className="idx-answer">
+                f({idxResult.idx}) = <FracVal value={idxResult.val} color="#c0392b" />
+              </div>
+            )}
+
+            <hr className="div" />
+
+            {/* Toolbar */}
+            <div className="toolbar">
+              <button className="tool-btn" onClick={handleOEIS}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Search OEIS
+              </button>
+              <button className="tool-btn" onClick={handleCopyFormula}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy Formula
+              </button>
+              <button className="tool-btn" onClick={handleDownloadJSON}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download JSON
+              </button>
+              <button className="tool-btn" onClick={handleShareLink}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Copy Share Link
+              </button>
+            </div>
+
           </div>
-          {idxResult && (
-            <div className="idx-answer">
-              f({idxResult.idx}) = <FracVal value={idxResult.val} color="#c0392b" />
-            </div>
-          )}
-
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
